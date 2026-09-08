@@ -1,6 +1,7 @@
 import { OfficerProfile, ReagentInfo, SeizureRecord } from '../types';
 
 export const INITIAL_OFFICER: OfficerProfile = {
+  id: 'officer-001',
   name: 'Officer Sharma',
   badgeNumber: 'NCB-DEL-9842',
   zone: 'NCB Delhi Zone',

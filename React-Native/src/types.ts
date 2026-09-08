@@ -62,7 +62,7 @@ export interface SeizureRecord {
 }
 
 export interface OfficerProfile {
-  id: number;
+  id: string;
   name: string;
   badgeNumber: string;
   zone: string;
