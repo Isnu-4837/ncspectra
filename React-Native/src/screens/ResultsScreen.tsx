@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, BackHandler } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { ReagentInfo } from '../types';
+import { ReagentInfo, CaptureResult } from '../types';
 
 interface ResultsScreenProps {
   selectedReagent: ReagentInfo;
+  captureResult: CaptureResult | null;
   onOpenPdfModal: () => void;
   onOpenAuditTrail: () => void;
   onSaveToSqlite: () => void;
@@ -15,7 +16,7 @@ interface ResultsScreenProps {
 }
 
 export const ResultsScreen: React.FC<ResultsScreenProps> = ({
-  selectedReagent, onOpenPdfModal, onOpenAuditTrail, onSaveToSqlite, onDone, onShowToast, isDark = false, onBack
+  selectedReagent, captureResult, onOpenPdfModal, onOpenAuditTrail, onSaveToSqlite, onDone, onShowToast, isDark = false, onBack
 }) => {
   const [saved, setSaved] = useState(false);
 
@@ -45,8 +46,22 @@ export const ResultsScreen: React.FC<ResultsScreenProps> = ({
   const onSurface = isDark ? '#e6f0ff' : '#181c1b';
   const onSurfaceVariant = isDark ? '#94a9c9' : '#444653';
   const bg = isDark ? '#051424' : '#f7faf7';
-  const positiveColor = isDark ? '#ff6b6b' : '#c62828';
-  const positiveContainerBg = isDark ? '#3d0000' : '#ffebee';
+
+  const status = captureResult?.status || 'POSITIVE';
+  const statusColors: Record<'POSITIVE' | 'INCONCLUSIVE' | 'NEGATIVE', { color: string; bg: string; icon: 'warning' | 'help-outline' | 'check-circle'; label: string }> = {
+    POSITIVE: { color: isDark ? '#ff6b6b' : '#c62828', bg: isDark ? '#3d0000' : '#ffebee', icon: 'warning', label: 'Preliminary Match: Positive' },
+    INCONCLUSIVE: { color: isDark ? '#fbbf24' : '#d97706', bg: isDark ? '#3a2a00' : '#fff8e1', icon: 'help-outline', label: 'Inconclusive — Retest Recommended' },
+    NEGATIVE: { color: isDark ? '#56d474' : '#15803d', bg: isDark ? '#032b0f' : '#e8f5e9', icon: 'check-circle', label: 'No Controlled Substance Detected' },
+  };
+  const statusStyle = statusColors[status];
+  const positiveColor = statusStyle.color;
+  const positiveContainerBg = statusStyle.bg;
+
+  const confidence = captureResult?.confidence ?? 97.3;
+  const compoundLabel = captureResult?.compoundName || selectedReagent.primaryMatchName || selectedReagent.name;
+  const matchScoreLabel = captureResult?.matchScore || selectedReagent.matchScore || '91.2%';
+  const resultLocation = captureResult?.liveLocation || 'DEL-NORTH-HQ';
+  const resultTime = captureResult?.timestamp ? new Date(captureResult.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
 
   const handleSave = () => {
     setSaved(true);
@@ -54,7 +69,6 @@ export const ResultsScreen: React.FC<ResultsScreenProps> = ({
     onShowToast('Saved to Vault', 'Evidence record encrypted and stored in local SQLite.', 'save', 'text-primary');
   };
 
-  const confidence = 97.3;
   const caseId = `NCB-DEL-${Date.now().toString(36).toUpperCase().slice(-4)}`;
 
   return (
@@ -68,10 +82,10 @@ export const ResultsScreen: React.FC<ResultsScreenProps> = ({
         <Text style={[s.caseId, { color: onSurfaceVariant }]}>Case: {caseId}</Text>
       </View>
 
-      {/* Positive Result Banner */}
+      {/* Result Banner */}
       <View style={[s.resultBanner, { backgroundColor: positiveContainerBg, borderColor: positiveColor }]}>
-        <MaterialIcons name="warning" size={24} color={positiveColor} />
-        <Text style={[s.resultBannerTitle, { color: positiveColor }]}>Preliminary Match: Positive</Text>
+        <MaterialIcons name={statusStyle.icon} size={24} color={positiveColor} />
+        <Text style={[s.resultBannerTitle, { color: positiveColor }]}>{statusStyle.label}</Text>
       </View>
 
       {/* Main Result Card */}
@@ -79,11 +93,11 @@ export const ResultsScreen: React.FC<ResultsScreenProps> = ({
         <Text style={[s.resultHash, { color: onSurfaceVariant }]}>
           SHA:{Date.now().toString(16).toUpperCase()}
         </Text>
-        <Text style={[s.compoundName, { color: onSurface }]}>{selectedReagent.name} — Confirmed</Text>
-        <Text style={[s.compoundSub, { color: primary }]}>Opioid Class — Schedule I Controlled Substance</Text>
+        <Text style={[s.compoundName, { color: onSurface }]}>{compoundLabel}</Text>
+        <Text style={[s.compoundSub, { color: positiveColor }]}>{matchScoreLabel}</Text>
         <Text style={[s.fieldMeta, { color: onSurfaceVariant }]}>
-          <MaterialIcons name="location-on" size={12} color={onSurfaceVariant} /> DEL-NORTH-HQ •{' '}
-          <MaterialIcons name="schedule" size={12} color={onSurfaceVariant} /> {new Date().toLocaleTimeString()}
+          <MaterialIcons name="location-on" size={12} color={onSurfaceVariant} /> {resultLocation} •{' '}
+          <MaterialIcons name="schedule" size={12} color={onSurfaceVariant} /> {resultTime}
         </Text>
 
         {/* Confidence Bar */}
@@ -103,10 +117,10 @@ export const ResultsScreen: React.FC<ResultsScreenProps> = ({
         <Text style={[s.sectionTitle, { color: onSurfaceVariant }]}>SPECTRAL METRICS</Text>
         <View style={{ gap: 12 }}>
           {[
-            { label: 'Spectral Match Score', value: selectedReagent.matchScore || '91.2%', icon: 'analytics' as const, color: primary },
-            { label: 'Purity Index', value: '88.7%', icon: 'verified' as const, color: secondary },
+            { label: 'Spectral Match Score', value: captureResult?.spectralMatch != null ? `${captureResult.spectralMatch}%` : matchScoreLabel, icon: 'analytics' as const, color: primary },
+            { label: 'Purity Index', value: captureResult?.purityIndex != null ? `${captureResult.purityIndex}%` : '88.7%', icon: 'verified' as const, color: secondary },
             { label: 'Standard Deviation', value: '±0.03 ΔE', icon: 'show-chart' as const, color: tertiary },
-            { label: 'Reaction Threshold', value: 'EXCEEDED (+12%)', icon: 'trending-up' as const, color: positiveColor },
+            { label: 'Reaction Threshold', value: status === 'POSITIVE' ? 'EXCEEDED (+12%)' : status === 'INCONCLUSIVE' ? 'BORDERLINE' : 'NOT MET', icon: 'trending-up' as const, color: positiveColor },
           ].map((m) => (
             <View key={m.label} style={s.metricRow}>
               <MaterialIcons name={m.icon} size={16} color={m.color} />

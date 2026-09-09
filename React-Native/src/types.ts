@@ -106,4 +106,30 @@ export interface CaptureSubmission {
   imageName: string;
   lat?: number;
   lng?: number;
+  status?: 'POSITIVE' | 'INCONCLUSIVE' | 'NEGATIVE';
+  compoundName?: string;
+  matchScore?: string;
+  spectralMatch?: number;
+  confidence?: number;
+  purityIndex?: number;
+  sampleColorHex?: string;
+  sampleColorName?: string;
+}
+
+// Shape of App.tsx's `latestCapture` state — the confirmed scan result
+// passed down to ResultsScreen once a capture has been analyzed.
+export interface CaptureResult {
+  liveLocation: string;
+  imageName: string;
+  lat: number;
+  lng: number;
+  timestamp: string;
+  status?: 'POSITIVE' | 'INCONCLUSIVE' | 'NEGATIVE';
+  compoundName?: string;
+  matchScore?: string;
+  spectralMatch?: number;
+  confidence?: number;
+  purityIndex?: number;
+  sampleColorHex?: string;
+  sampleColorName?: string;
 }
