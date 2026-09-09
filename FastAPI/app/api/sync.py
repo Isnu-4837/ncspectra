@@ -20,11 +20,10 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.database import get_db
 from app.models.analysis_result import AnalysisResult
 from app.models.officer import Officer
 from app.models.seizure_record import SeizureRecord
-from app.dependencies import get_current_officer
+from app.dependencies import get_db, get_current_officer
 
 router = APIRouter(prefix="/api/sync", tags=["sync"])
 
