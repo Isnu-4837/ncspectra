@@ -7,6 +7,7 @@ from app.api.router import api_router
 from app.config import settings
 from app.database import SessionLocal, init_db
 from app.utils.seed import seed_db
+from app.api.sync import router as sync_router
 
 
 @asynccontextmanager
@@ -37,6 +38,8 @@ app.add_middleware(
 )
 
 app.include_router(api_router, prefix="/api")
+# sync router carries its own /api/sync prefix — mount directly on app
+app.include_router(sync_router)
 
 
 @app.get("/")
