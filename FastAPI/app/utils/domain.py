@@ -63,34 +63,73 @@ def build_time_display(created_at: datetime, now: datetime | None = None) -> str
     return f"{delta.days} days ago"
 
 
-def derive_analysis_metrics(reagent: Reagent) -> dict[str, object]:
-    base_confidence = float(reagent.confidence_score or 80.0)
-    delta_e = float(reagent.delta_e or 0.0)
-
-    spectral_match = round(min(99.8, max(70.0, base_confidence + 4.2)), 1)
-    purity_index = round(min(98.5, max(55.0, base_confidence - 2.5)), 1)
-    confidence = round(min(99.8, max(60.0, base_confidence + 7.1)), 1)
-    std_dev = round(max(0.01, min(0.08, delta_e / 240)), 2)
-    reaction_threshold_exceeded = delta_e <= 10.0
-
-    if confidence >= 90 and reaction_threshold_exceeded:
-        status = "POSITIVE"
-    elif confidence >= 75:
-        status = "INCONCLUSIVE"
+def derive_analysis_metrics(
+    reagent: Reagent,
+    override_status: str | None = None,
+    override_compound_name: str | None = None,
+    override_spectral_match: float | None = None,
+    override_confidence: float | None = None,
+    override_purity_index: float | None = None,
+    override_match_score: str | None = None,
+) -> dict[str, object]:
+    if override_status:
+        status = override_status.upper()
+        if status == "NEGATIVE":
+            spectral_match = override_spectral_match if override_spectral_match is not None else 12.4
+            confidence = override_confidence if override_confidence is not None else 14.8
+            purity_index = override_purity_index if override_purity_index is not None else 5.0
+            match_score = override_match_score or f"{spectral_match:.1f}% No Match"
+            compound_name = override_compound_name or "NO CONTROLLED SUBSTANCE DETECTED"
+            reaction_threshold_exceeded = False
+            std_dev = 0.65
+            delta_e = 48.2
+        elif status == "INCONCLUSIVE":
+            spectral_match = override_spectral_match if override_spectral_match is not None else 68.5
+            confidence = override_confidence if override_confidence is not None else 72.1
+            purity_index = override_purity_index if override_purity_index is not None else 45.0
+            match_score = override_match_score or "Delta > 18.4"
+            compound_name = override_compound_name or f"INCONCLUSIVE ({reagent.name})"
+            reaction_threshold_exceeded = False
+            std_dev = 0.35
+            delta_e = 18.4
+        else:
+            status = "POSITIVE"
+            spectral_match = override_spectral_match if override_spectral_match is not None else 91.2
+            confidence = override_confidence if override_confidence is not None else 94.1
+            purity_index = override_purity_index if override_purity_index is not None else 88.7
+            match_score = override_match_score or f"{spectral_match:.1f}% Match"
+            compound_name = override_compound_name or reagent.primary_match_name or reagent.name
+            reaction_threshold_exceeded = True
+            std_dev = 0.03
+            delta_e = 0.42
     else:
-        status = "NEGATIVE"
+        base_confidence = float(reagent.confidence_score or 80.0)
+        delta_e = float(reagent.delta_e or 0.0)
 
-    compound_name = reagent.primary_match_name or reagent.name
+        spectral_match = round(min(99.8, max(70.0, base_confidence + 4.2)), 1)
+        purity_index = round(min(98.5, max(55.0, base_confidence - 2.5)), 1)
+        confidence = round(min(99.8, max(60.0, base_confidence + 7.1)), 1)
+        std_dev = round(max(0.01, min(0.08, delta_e / 240)), 2)
+        reaction_threshold_exceeded = delta_e <= 10.0
+
+        if confidence >= 90 and reaction_threshold_exceeded:
+            status = "POSITIVE"
+        elif confidence >= 75:
+            status = "INCONCLUSIVE"
+        else:
+            status = "NEGATIVE"
+
+        compound_name = reagent.primary_match_name or reagent.name
+        if status == "POSITIVE":
+            match_score = f"{spectral_match:.1f}% Match"
+        elif status == "INCONCLUSIVE":
+            match_score = f"Delta > {delta_e:.2f}"
+        else:
+            match_score = f"{spectral_match:.1f}% No Match"
+
     compound_class = reagent.category_label or reagent.category or "Unknown"
     peak_wavelength = reagent.peak_wavelength or "0.0 nm"
     absorbance = reagent.absorbance or "0.00 A"
-
-    if status == "POSITIVE":
-        match_score = f"{spectral_match:.1f}% Match"
-    elif status == "INCONCLUSIVE":
-        match_score = f"Delta > {delta_e:.2f}"
-    else:
-        match_score = f"{spectral_match:.1f}% No Match"
 
     return {
         "compound_name": compound_name,

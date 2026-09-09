@@ -11,6 +11,12 @@ class AnalysisRequest(BaseModel):
     image_name: Optional[str] = None
     lat: Optional[float] = None
     lng: Optional[float] = None
+    status: Optional[str] = None  # POSITIVE | INCONCLUSIVE | NEGATIVE
+    compound_name: Optional[str] = None
+    spectral_match: Optional[float] = None
+    confidence: Optional[float] = None
+    purity_index: Optional[float] = None
+    match_score: Optional[str] = None
 
 
 class AnalysisResultOut(BaseModel):

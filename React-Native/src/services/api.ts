@@ -1,62 +1,123 @@
-const API_BASE_URL = 'https://ncspectra.onrender.com';
+import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
-interface RequestOptions {
-  method?: string;
-  headers?: Record<string, string>;
-  body?: any;
-}
+const env =
+  (globalThis as typeof globalThis & {
+    process?: { env?: Record<string, string | undefined> };
+  }).process?.env;
 
-const fetchWithConfig = async (endpoint: string, options: RequestOptions = {}) => {
-  const url = `${API_BASE_URL}${endpoint}`;
-  
-  const headers = {
-    'Accept': 'application/json',
-    'Content-Type': 'application/json',
-    ...options.headers,
-  };
-
-  const config: RequestInit = {
-    method: options.method || 'GET',
-    headers,
-  };
-
-  if (options.body) {
-    config.body = JSON.stringify(options.body);
+const getApiBaseUrl = (): string => {
+  if (env?.EXPO_PUBLIC_API_BASE_URL) {
+    return env.EXPO_PUBLIC_API_BASE_URL.replace(/\/$/, '');
   }
 
-  try {
-    const response = await fetch(url, config);
-    const data = await response.json().catch(() => null);
+  // Get the host IP address of the machine running Metro bundler (e.g. 10.147.107.168)
+  const hostUri = Constants.expoConfig?.hostUri || (Constants as any).manifest2?.extra?.expoGo?.developer?.tool;
+  if (hostUri) {
+    const ip = hostUri.split(':')[0];
+    if (ip && ip !== 'localhost' && ip !== '127.0.0.1') {
+      return `http://${ip}:8000/api`;
+    }
+  }
 
+  // Fallback for Android emulator (10.0.2.2 is the Android alias for host's localhost)
+  if (Platform.OS === 'android') {
+    return 'http://10.0.2.2:8000/api';
+  }
+
+  return 'http://localhost:8000/api';
+};
+
+const BASE_URL = getApiBaseUrl();
+console.log('[NCSpectra API] Connected to backend at:', BASE_URL);
+
+let authToken: string | null = null;
+
+export const setAuthToken = (token: string | null) => {
+  authToken = token;
+};
+
+export const getAuthToken = () => authToken;
+
+export const apiClient = {
+  async request(endpoint: string, method: string, data?: any, token?: string) {
+    const activeToken = token || authToken;
+    const response = await fetch(`${BASE_URL}${endpoint}`, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(activeToken ? { 'Authorization': `Bearer ${activeToken}` } : {}),
+      },
+      ...(data !== undefined ? { body: JSON.stringify(data) } : {}),
+    });
+
+    const payload = await response.json().catch(() => null);
     if (!response.ok) {
-      throw new Error(data?.detail || data?.message || `HTTP error! status: ${response.status}`);
+      const message = payload?.detail || payload?.message || `Request failed with status ${response.status}`;
+      throw new Error(message);
     }
 
-    return data;
-  } catch (error) {
-    console.error(`API Error on ${options.method || 'GET'} ${endpoint}:`, error);
-    throw error;
+    return payload;
+  },
+
+  async get(endpoint: string, token?: string) {
+    return await this.request(endpoint, 'GET', undefined, token);
+  },
+
+  async post(endpoint: string, data?: any, token?: string) {
+    return await this.request(endpoint, 'POST', data, token);
+  },
+
+  async put(endpoint: string, data?: any, token?: string) {
+    return await this.request(endpoint, 'PUT', data, token);
   }
 };
 
-export const api = {
-  get: (endpoint: string, headers?: Record<string, string>) => 
-    fetchWithConfig(endpoint, { method: 'GET', headers }),
-
-  post: (endpoint: string, body: any, headers?: Record<string, string>) => 
-    fetchWithConfig(endpoint, { method: 'POST', body, headers }),
-
-  put: (endpoint: string, body: any, headers?: Record<string, string>) => 
-    fetchWithConfig(endpoint, { method: 'PUT', body, headers }),
-
-  delete: (endpoint: string, headers?: Record<string, string>) => 
-    fetchWithConfig(endpoint, { method: 'DELETE', headers }),
-
-  // Specific sync route for offline records
-  syncRecords: async (encryptedLogs: any[]) => {
-    return fetchWithConfig('/api/records/sync', {
-      method: 'POST',
-      body: { records: encryptedLogs }
+export const authApi = {
+  async login(badgeNumber: string, passcode: string) {
+    const res = await apiClient.post('/auth/login', {
+      badge_number: badgeNumber,
+      passcode: passcode
     });
+    if (res?.access_token) {
+      setAuthToken(res.access_token);
+    }
+    return res;
+  }
+};
+
+export const recordsApi = {
+  async list(limit = 20) {
+    return await apiClient.get(`/records/?limit=${limit}`);
+  },
+
+  async create(data: {
+    reagent_name: string;
+    location: string;
+    live_location?: string;
+    image_name?: string;
+    status: string;
+    compound_name: string;
+    match_score: string;
+    accent_color?: string;
+    evidence_seal?: string;
+    sha256?: string;
+    lat?: number;
+    lng?: number;
+    location_label?: string;
+  }) {
+    return await apiClient.post('/records/', data);
+  }
+};
+
+export const reagentsApi = {
+  async list() {
+    return await apiClient.get('/reagents/');
+  }
+};
+
+export const dashboardApi = {
+  async summary() {
+    return await apiClient.get('/dashboard/summary');
   }
 };

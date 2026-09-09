@@ -68,7 +68,15 @@ def run_analysis(
     if reagent is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Reagent not found")
 
-    metrics = derive_analysis_metrics(reagent)
+    metrics = derive_analysis_metrics(
+        reagent,
+        override_status=payload.status,
+        override_compound_name=payload.compound_name,
+        override_spectral_match=payload.spectral_match,
+        override_confidence=payload.confidence,
+        override_purity_index=payload.purity_index,
+        override_match_score=payload.match_score,
+    )
     now = datetime.now()
     sequence = next_numeric_suffix((row[0] for row in db.query(SeizureRecord.id).all()), "ncb-")
     live_location = payload.live_location or payload.location or "DEL-NORTH-HQ"

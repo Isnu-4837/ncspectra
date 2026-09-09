@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, Animated, Easing,
   BackHandler, useWindowDimensions,
@@ -10,7 +10,7 @@ import type { ReagentInfo } from '../types';
 
 interface ScanScreenProps {
   selectedReagent: ReagentInfo;
-  onCapture: () => void;
+  onCapture: (photoBase64?: string) => void;
   onAbort: () => void;
   onShowToast: (title: string, desc: string, icon?: string, color?: string) => void;
   isDark?: boolean;
@@ -77,9 +77,32 @@ export const ScanScreen: React.FC<ScanScreenProps> = ({
   selectedReagent, onCapture, onAbort, onShowToast, isDark = false, onBack,
 }) => {
   const { width: screenW, height: screenH } = useWindowDimensions();
-
+  const cameraRef = useRef<any>(null);
   const [torchActive, setTorchActive] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
+
+  const handleCapture = useCallback(async () => {
+    if (isCapturing) return;
+    setIsCapturing(true);
+    onShowToast('Capturing...', 'Taking photo for color analysis.');
+    try {
+      if (cameraRef.current) {
+        const photo = await cameraRef.current.takePictureAsync({ base64: true, quality: 0.5 });
+        if (photo?.base64) {
+          onCapture(photo.base64);
+          return;
+        }
+      }
+      // Fallback if camera ref not available
+      onCapture(undefined);
+    } catch (err) {
+      console.warn('Camera capture failed, proceeding without photo:', err);
+      onCapture(undefined);
+    } finally {
+      setIsCapturing(false);
+    }
+  }, [isCapturing, cameraRef, onCapture, onShowToast]);
 
   // Hardware back button
   useEffect(() => {
@@ -225,7 +248,7 @@ export const ScanScreen: React.FC<ScanScreenProps> = ({
 
       {/* ── Viewfinder ─────────────────────────────────────────────────── */}
       <View style={s.viewfinder}>
-        <CameraView style={StyleSheet.absoluteFill} facing="back" enableTorch={torchActive} />
+        <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" enableTorch={torchActive} />
 
         {/* Scrims for legibility */}
         <LinearGradient
@@ -400,8 +423,8 @@ export const ScanScreen: React.FC<ScanScreenProps> = ({
             ]}
           >
             <PressableScale
-              onPress={onCapture}
-              style={[s.captureBtn, { backgroundColor: primary, height: btnH }]}
+              onPress={() => { void handleCapture(); }}
+              style={[s.captureBtn, { backgroundColor: primary, height: btnH, opacity: isCapturing ? 0.6 : 1 }]}
             >
               <MaterialIcons name="photo-camera" size={22} color={isDark ? '#003822' : '#fff'} />
               <Text style={[s.captureBtnText, { color: isDark ? '#003822' : '#fff' }]}>
