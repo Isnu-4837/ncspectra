@@ -10,9 +10,13 @@
  * If the token is null it attempts to reload from SecureStore first, so
  * background syncs after an app restart still work.
  *
- * Requires: npx expo install @react-native-community/netinfo
+ * NetInfo (@react-native-community/netinfo) is loaded dynamically at runtime.
+ * If it is absent (e.g. running inside Expo Go which doesn't bundle it),
+ * auto-sync is silently disabled — the rest of the app, including offline
+ * SQLite storage, continues to work normally.
+ *
+ * Requires for full auto-sync: npx expo install @react-native-community/netinfo
  */
-import NetInfo, { NetInfoSubscription } from '@react-native-community/netinfo';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import {
@@ -54,7 +58,22 @@ export interface SyncSummary {
 }
 
 let isSyncing = false;
-let netInfoUnsubscribe: NetInfoSubscription | null = null;
+let netInfoUnsubscribe: (() => void) | null = null;
+
+// NetInfo is a native module not bundled in Expo Go.
+// We load it dynamically so the rest of the app still works without it.
+type NetInfoModule = typeof import('@react-native-community/netinfo');
+let _netInfo: NetInfoModule | null = null;
+async function getNetInfo(): Promise<NetInfoModule | null> {
+  if (_netInfo) return _netInfo;
+  try {
+    _netInfo = await import('@react-native-community/netinfo') as NetInfoModule;
+    return _netInfo;
+  } catch {
+    console.warn('[sync] @react-native-community/netinfo not available (Expo Go?) — auto-sync disabled');
+    return null;
+  }
+}
 
 /**
  * Returns the current JWT. Checks the in-memory token first (set when the
@@ -178,21 +197,32 @@ export async function syncPendingRecords(): Promise<SyncSummary> {
 export function startAutoSync(): void {
   if (netInfoUnsubscribe) return; // already running
 
-  netInfoUnsubscribe = NetInfo.addEventListener((state) => {
-    if (state.isConnected && state.isInternetReachable !== false) {
-      syncPendingRecords().catch((err) =>
-        console.warn('[sync] auto-sync listener error:', err)
-      );
-    }
-  });
-
-  // Also fire once immediately in case we're already online
-  NetInfo.fetch().then((state) => {
-    if (state.isConnected && state.isInternetReachable !== false) {
+  getNetInfo().then((NetInfo) => {
+    if (!NetInfo) {
+      // Running in Expo Go or an env without native NetInfo —
+      // just fire one sync attempt if we can (no listener).
       syncPendingRecords().catch((err) =>
         console.warn('[sync] initial sync error:', err)
       );
+      return;
     }
+
+    netInfoUnsubscribe = NetInfo.default.addEventListener((state) => {
+      if (state.isConnected && state.isInternetReachable !== false) {
+        syncPendingRecords().catch((err) =>
+          console.warn('[sync] auto-sync listener error:', err)
+        );
+      }
+    });
+
+    // Also fire once immediately in case we're already online
+    NetInfo.default.fetch().then((state) => {
+      if (state.isConnected && state.isInternetReachable !== false) {
+        syncPendingRecords().catch((err) =>
+          console.warn('[sync] initial sync error:', err)
+        );
+      }
+    });
   });
 }
 
