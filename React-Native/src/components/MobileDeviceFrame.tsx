@@ -82,7 +82,7 @@ export const MobileDeviceFrame: React.FC<MobileDeviceFrameProps> = ({
                     ? 'bg-blue-600 text-white font-bold shadow-sm'
                     : 'text-slate-300 hover:text-white hover:bg-slate-800'
                 }`}
-                title={s.label}
+                accessibilityLabel={s.label}
               >
                 <span className="material-symbols-outlined text-[13px]">{s.icon}</span>
                 <Text className="hidden lg:inline text-inherit font-inherit">{s.label}</Text>
@@ -94,7 +94,7 @@ export const MobileDeviceFrame: React.FC<MobileDeviceFrameProps> = ({
           <TouchableOpacity
             onPress={() => setDeviceMode(deviceMode === 'mobile' ? 'fullscreen' : 'mobile')}
             className="ml-2 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-mono flex-row items-center gap-1 border border-slate-700 cursor-pointer"
-            title="Toggle Device Frame"
+            accessibilityLabel="Toggle Device Frame"
           >
             <span className="material-symbols-outlined text-[14px]">
               {deviceMode === 'mobile' ? 'fullscreen' : 'smartphone'}

@@ -3,6 +3,7 @@
     "name": "NCSpectra",
     "slug": "ncspectra-tactical-field",
     "version": "1.0.0",
+    "scheme": "ncspectra",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -30,12 +31,23 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/splash.png",
-          "imageWidth": 220,
+          "backgroundColor": "#050B14",
+          "image": "./assets/icon.png",
+          "imageWidth": 160,
           "resizeMode": "contain",
-          "backgroundColor": "#050B14"
+          "ios": {
+            "image": "./assets/icon.png",
+            "resizeMode": "contain",
+            "backgroundColor": "#050B14"
+          },
+          "android": {
+            "image": "./assets/icon.png",
+            "resizeMode": "contain",
+            "backgroundColor": "#050B14"
+          }
         }
-      ]
+      ],
+      "expo-sqlite"
     ]
   }
 }

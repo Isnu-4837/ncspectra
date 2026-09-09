@@ -8,6 +8,7 @@ import { View, Appearance } from 'react-native';
 import { REAGENTS_DATA } from './src/data/mockData';
 import { ReagentInfo, ScreenType, SeizureRecord } from './src/types';
 import { Header } from './src/components/Header';
+import { IntroScreen } from './src/screens/IntroScreen';
 import { BottomNav } from './src/components/BottomNav';
 import { DashboardScreen } from './src/screens/DashboardScreen';
 import { ReagentsScreen } from './src/screens/ReagentsScreen';
@@ -22,9 +23,15 @@ import { AuditTrailModal } from './src/components/AuditTrailModal';
 import { CalibrationModal } from './src/components/CalibrationModal';
 import { OfflineSopModal } from './src/components/OfflineSopModal';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { recordsApi, authApi } from './src/services/api';
+import { recordsApi, authApi, loadStoredToken } from './src/services/api';
+import { initOfflineDb } from './src/services/Offlinedb';
+import { startAutoSync } from './src/services/syncService';
 
 export default function App() {
+  // Shows the full branded splash.png as a real screen for a moment on
+  // launch, then hands off to the login screen. See IntroScreen.tsx for
+  // why this can't just be done via the native splash config alone.
+  const [showIntro, setShowIntro] = useState(true);
   const [currentScreen, setCurrentScreen] = useState<ScreenType>('login');
   const [selectedReagent, setSelectedReagent] = useState<ReagentInfo>(REAGENTS_DATA[0]);
   const [offlineQueueCount, setOfflineQueueCount] = useState<number>(3);
@@ -84,6 +91,18 @@ export default function App() {
       setIsDark(colorScheme === 'dark');
     });
     return () => subscription.remove();
+  }, []);
+
+  // Initialise local SQLite DB and start auto-sync once the app mounts
+  useEffect(() => {
+    // Restore any persisted auth token first so the initial sync
+    // (triggered by startAutoSync) can authenticate with the server.
+    loadStoredToken()
+      .then(() => initOfflineDb())
+      .then(startAutoSync)
+      .catch((err) =>
+        console.warn('[App] DB / sync init error:', err)
+      );
   }, []);
 
   // Attempt auto-login with default credentials on app start so API token is set
@@ -168,6 +187,14 @@ export default function App() {
       default: return 'NCB TACTICAL FIELD v2.4';
     }
   };
+
+  if (showIntro) {
+    return (
+      <SafeAreaProvider>
+        <IntroScreen onFinish={() => setShowIntro(false)} />
+      </SafeAreaProvider>
+    );
+  }
 
   return (
     <SafeAreaProvider>
