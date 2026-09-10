@@ -1,20 +1,42 @@
 from datetime import datetime, timedelta
 from typing import Optional
 
+import bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 from app.config import settings
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# We call bcrypt directly instead of going through passlib's CryptContext.
+# passlib is unmaintained (last released 2020) and its bcrypt handler runs a
+# startup self-test (`detect_wrap_bug`) that crashes with
+# "ValueError: password cannot be longer than 72 bytes" on any bcrypt
+# version >= 4.1 — a well-known passlib/bcrypt incompatibility. Calling
+# bcrypt directly sidesteps that broken code path entirely, so this stops
+# depending on which bcrypt version happens to be installed.
+#
+# bcrypt has always silently truncated passwords over 72 bytes; the
+# library's newer major versions turned that into a hard ValueError instead
+# of truncating for you, so we truncate explicitly here.
+_MAX_BCRYPT_BYTES = 72
+
+
+def _prepare(plain: str) -> bytes:
+    return plain.encode("utf-8")[:_MAX_BCRYPT_BYTES]
 
 
 def hash_password(plain: str) -> str:
-    return pwd_context.hash(plain)
+    hashed = bcrypt.hashpw(_prepare(plain), bcrypt.gensalt())
+    return hashed.decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    try:
+        return bcrypt.checkpw(_prepare(plain), hashed.encode("utf-8"))
+    except (ValueError, TypeError):
+        # Malformed/legacy hash in the DB — treat as "does not match"
+        # rather than raising, so a bad stored hash surfaces as 401
+        # (invalid credentials) instead of a 500.
+        return False
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
